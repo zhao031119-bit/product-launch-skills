@@ -56,3 +56,6 @@ Codex、Cursor、Kiro 等支持 SKILL.md 的工具，复制到各自的 skills �
 ```bash
 npm test
 ```
+
+## 许可证
+MIT，见 [LICENSE](LICENSE)。
