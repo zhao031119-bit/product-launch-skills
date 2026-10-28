@@ -34,13 +34,13 @@ description: 网站和 SaaS 的 SEO 与 GEO（让 ChatGPT 能推荐你）上线�
 - [ ] robots.txt：`Sitemap: https://<域名>/sitemap.xml`（和规范网址完全一致）；屏蔽 /admin、/settings、/api/。
 - [ ] robots.txt 放行搜索和 AI 爬虫：Googlebot、Bingbot、OAI-SearchBot、ChatGPT-User、GPTBot、PerplexityBot、ClaudeBot。
 - [ ] 注意 `Disallow: /*?*`：带 UTM 的外链就爬不到，canonical 也就看不到。要权衡。
-- [ ] llms.txt：页面清单，每个一句话说明，再加关键事实（价格、免费吗、输入和输出、限制）。
+- [ ] llms.txt：页面清单，每个一句话说明，再加关键事实（价格、免费吗、输入和输出、限制）。事实从产品事实文件生成（→ `launch-checklist`）。
 
 ## 4. 结构化数据（JSON-LD）
 - 全站：WebSite、Organization、WebApplication 或 SoftwareApplication（featureList、价格、inLanguage）。
 - 首页：FAQPage（和页面上看得到的 FAQ 一致）、HowTo（3 步）。
 - 攻略、答案页、对比页：Article + BreadcrumbList + FAQPage。
-- 只写页面上真有的内容，别编。
+- 只写页面上真有的内容，别编。价格（offers）从产品事实文件生成，和定价页一致。
 - 别指望 FAQ / HowTo 富结果：Google 2023 年起不再显示 HowTo 富结果，FAQ 富结果只给政府、医疗类权威站。这些 JSON-LD 帮机器读懂页面，写上无妨，但别为它卡上线。
 
 ## 5. 内容：给 Google 和 ChatGPT 的答案
@@ -66,7 +66,7 @@ hreflang 必须互相指向（每个版本都列出全部版本 + x-default）�
    # 有要跳走的旧路径前缀（例：以前的 /zh）就加上，可以写多个
    node scripts/seo-check.mjs https://<域名> --legacy-prefix=/zh
    ```
-   它会检查：robots（有 Sitemap 行，没把搜索和 AI 爬虫挡在外面）、sitemap（sitemap index 会往下读）、每个网址 200 + 自指 canonical + 没有 noindex、hreflang 目标、http / 另一个主机名（www 或裸域）/ 末尾斜杠 / 旧前缀各一跳 301、未知页面 404。
+   它会检查：robots（有 Sitemap 行，没把搜索和 AI 爬虫挡在外面）、sitemap（sitemap index 会往下读）、每个网址 200 + 自指 canonical + 没有 noindex、hreflang 目标、http / 另一个主机名（www 或裸域）/ 末尾斜杠 / 旧前缀各一跳 301、未知页面 404。另外给出提示（不算失败）：title 和 description 的长度、`<html lang>`、OG 标签、llms.txt。
 2. Google Search Console：添加"网域"资源（一并覆盖 www 和 http），只提交 `https://<域名>/sitemap.xml`。
 3. Bing Webmaster Tools：从 GSC 导入网站。ChatGPT 搜索靠 Bing 的索引。
 4. IndexNow：`public/` 放 `<key>.txt`，然后运行

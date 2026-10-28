@@ -16,7 +16,7 @@ Do not edit anything in the project. Only write your output file.
 
 ## The product
 <两三句：输入什么、输出什么、多长、什么格式、有没有水印、多久出片>
-Prices: <套餐和点数>. There is NO free <产品>. (如果真有免费，就照实写)
+Prices: <套餐和点数，从产品事实文件抄>. There is NO free <产品>. (如果真有免费，就照实写)
 
 Key prefixes tell you where a string shows: <nav/hero = 首屏; compare = 表格; faq = 问答; …>
 

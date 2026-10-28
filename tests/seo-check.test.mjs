@@ -29,10 +29,29 @@ function seoCheck(options, ...args) {
 const failsOn = (result, text) =>
   result.fails.some((line) => line.includes(text));
 
-test('a site that follows every rule is all clear', () => {
+test('a site that follows every rule is all clear, without warnings', () => {
   const result = seoCheck({});
   assert.equal(result.code, 0, result.output);
   assert.match(result.output, /All clear/);
+  assert.doesNotMatch(result.output, /^warn/m);
+});
+
+test('page basics and llms.txt are warnings, not failures', () => {
+  const result = seoCheck({
+    title: 'x'.repeat(70),
+    noDescription: true,
+    noOg: true,
+    noLlmsTxt: true,
+  });
+  assert.equal(result.code, 0, result.output);
+  for (const warning of [
+    /title is 70 characters/,
+    /no meta description/,
+    /missing og:title, og:description, og:image/,
+    /llms\.txt: HTTP 404/,
+  ]) {
+    assert.match(result.output, warning);
+  }
 });
 
 test('a retired prefix is checked only when passed in', () => {

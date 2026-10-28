@@ -15,6 +15,7 @@ description: 上线当天的执行手册：部署前检查、数据库迁移前�
 - [ ] 公开配置（站点网址、站名、分析 ID）和密钥分开放：密钥一律用平台的 secret。
 - [ ] 构建时的站点网址 = 运行时配置里的站点网址 = 正式域名。包里打进了 localhost，登录和回调都会出错。
 - [ ] 本地：类型检查、测试、构建都过。
+- [ ] 每个模型服务商的后台都设好了花费上限和用量提醒（→ `abuse-and-cost-control`）。
 
 ## 顺序执行
 1. 结构没改就不生成新迁移。
@@ -26,6 +27,7 @@ description: 上线当天的执行手册：部署前检查、数据库迁移前�
 6. 看部署包体积：离平台上限不到 10% 就要提醒。
 
 ## 部署后（冒烟测试）
+结果按 `launch-checklist` 里「核对时怎么汇报」的格式给出。
 - [ ] DNS：裸域和 www 都解析到新站（本地 DNS 不可信时用 DoH：`https://1.1.1.1/dns-query`）。
 - [ ] 首页、各语言首页、定价页、主要内容页、sitemap、robots、llms.txt、关键静态资源都是 200。
 - [ ] 公开配置接口（如果有）：开关和服务商设置都对。只剩默认值 = 没读到数据库。
@@ -33,6 +35,7 @@ description: 上线当天的执行手册：部署前检查、数据库迁移前�
 - [ ] 支付：webhook 地址指向生产，填的是规范网址（→ `payments-and-billing`）。
 - [ ] 跑 `seo-launch` 的 `seo-check.mjs https://<域名>`，显示 `All clear`（有旧路径前缀就加 `--legacy-prefix=/zh` 之类）。
 - [ ] 在项目根目录跑 `seo-launch` 的 `indexnow.mjs https://<域名>`，返回 200 或 202。
+- [ ] 跑 `compliance-and-copy` 的 `site-audit.mjs https://<域名> --webhook=<支付回调路径>`，显示 `All clear`；列出来的 free、unlimited 这类说法逐条确认。
 
 ## 然后（要用户参与）
 1. 用户正常登录一次 → 把这个账号提升为管理员（→ `auth-and-accounts`）。

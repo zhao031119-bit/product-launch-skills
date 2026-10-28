@@ -32,7 +32,8 @@ description: 网站和 SaaS 多语言的规范：先翻哪些页面（首页、�
 1. 收集要翻的页面真正用到的文案 key：从入口页面和根布局沿 import 往下找（`scripts/collect-keys.cjs`）。别全量翻译。
    - 脚本按 ShipAny 的写法：文案 key 是带点的字符串（`t('landing.hero.title')`），`messages/en.json` 是扁平的，`@/` 指向 `src/`。别的项目先改脚本顶部的 `ALIAS_DIR` 和 `SKIP`；Paraglide 默认的 `m.hero_title()` 写法它抓不到。
 2. 写一份翻译说明：模板见 `references/translation-brief.md`。要点：
-   - 产品事实（价格、额度、有没有免费）。
+   - 产品事实（价格、额度、有没有免费）：从产品事实文件抄，别凭记忆写。
+   - 价格、额度这类数字在文案里是占位符（例 `{price}`），翻译时原样保留。
    - 不翻译的词：品牌名、平台名、格式（例 MP4、9:16、480p）、套餐名。
    - 要保留原文的内容照抄（例：视频里说的英文台词、代码、命令）。
    - 语气：To C 用口语、短句、非正式的"你"；B2B 按目标客户定。

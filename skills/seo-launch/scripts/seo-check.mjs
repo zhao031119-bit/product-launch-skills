@@ -13,6 +13,9 @@
 //   does not use, a trailing slash, each --legacy-prefix) is a permanent 301
 //   straight to the clean URL
 // - an unknown page answers 404, not a 200 "soft 404"
+// Warnings only (they do not block "All clear"): each sitemap page has a
+// title within 60 characters, a description within 160, <html lang> and
+// og:title / og:description / og:image; /llms.txt answers 200.
 //
 // Usage after a deploy:   node scripts/seo-check.mjs https://your-domain
 // Against the dev server: node scripts/seo-check.mjs http://localhost:3000
@@ -74,7 +77,10 @@ const decode = (text) =>
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(code))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16))
+    )
     .replace(/&amp;/g, '&');
 
 /** The URL in normal form (https://x.com is https://x.com/), or null. */
@@ -100,6 +106,40 @@ function isNoindex(html, res) {
       /\bname=["']?(robots|googlebot|bingbot)\b/i.test(tag) &&
       /noindex/i.test(tag)
   );
+}
+
+/** The content of the first <meta> whose name or property is `key`. */
+function metaContent(html, key) {
+  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const name = tag.match(/\b(?:name|property)=["']?([^"'\s>]+)/i)?.[1];
+    if (name?.toLowerCase() !== key) continue;
+    const content = tag.match(/\bcontent=(?:"([^"]*)"|'([^']*)')/i);
+    return decode(content?.[1] ?? content?.[2] ?? '');
+  }
+  return null;
+}
+
+/** What search results and share cards show; problems here do not block. */
+function pageWarnings(html) {
+  const warnings = [];
+  const title = html.match(/<title\b[^>]*>([^<]*)<\/title>/i)?.[1];
+  const titleText = decode(title ?? '').trim();
+  if (!titleText) warnings.push('no <title>');
+  else if (titleText.length > 60)
+    warnings.push(`title is ${titleText.length} characters, keep it within 60`);
+  const description = metaContent(html, 'description')?.trim();
+  if (!description) warnings.push('no meta description');
+  else if (description.length > 160)
+    warnings.push(
+      `description is ${description.length} characters, keep it within 160`
+    );
+  if (!/<html\b[^>]*\blang=["']?[a-z]/i.test(html))
+    warnings.push('no <html lang>');
+  const missingOg = ['og:title', 'og:description', 'og:image'].filter(
+    (key) => !metaContent(html, key)
+  );
+  if (missingOg.length) warnings.push(`missing ${missingOg.join(', ')}`);
+  return warnings;
 }
 
 async function check(label, run) {
@@ -229,6 +269,7 @@ for (const loc of locs) {
       bad(`${loc}: canonical is ${canonicals[0]}`);
     else if (isNoindex(html, res)) bad(`${loc}: noindex`);
     else ok(`200, self-canonical  ${loc}`);
+    for (const warning of pageWarnings(html)) warn(`${loc}: ${warning}`);
   });
 }
 
@@ -295,6 +336,14 @@ await check('unknown page', async () => {
   await res.body?.cancel();
   if (res.status === 404) ok('404  unknown page');
   else bad(`unknown page: HTTP ${res.status}, want 404`);
+});
+
+// 7. llms.txt, the page list for AI assistants (a warning, not a blocker)
+await check('llms.txt', async () => {
+  const res = await get(`${site}/llms.txt`);
+  await res.body?.cancel();
+  if (res.status === 200) ok('200  llms.txt');
+  else warn(`llms.txt: HTTP ${res.status}, seo-launch lists one`);
 });
 
 console.log(

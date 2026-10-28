@@ -1,6 +1,6 @@
 ---
 name: compliance-and-copy
-description: SaaS 上线前的合规与文案规范：5 个法律页面写什么、用户数据交给了哪些第三方、欧盟 Cookie 同意、诚实文案（免费、无限、AI 能力、评价）、支付审核和广告的禁用词、第三方素材与商标（域名和站名）、用户上传和用户生成的内容。Use when writing landing copy or legal pages, choosing a domain or site name, preparing for payment-provider or ad review, handling uploads or user content, or asking "文案能这么写吗 / 会不会被拒 / 隐私政策 / 版权 / 商标 / GDPR".
+description: SaaS 上线前的合规与文案规范：5 个法律页面写什么、用户数据交给了哪些第三方、欧盟 Cookie 同意、诚实文案（免费、无限、AI 能力、评价）、支付审核和广告的禁用词、第三方素材与商标（域名和站名）、用户上传和用户生成的内容，附上线前自查脚本。Use when writing landing copy or legal pages, choosing a domain or site name, preparing for payment-provider or ad review, handling uploads or user content, auditing a site before launch, or asking "文案能这么写吗 / 会不会被拒 / 隐私政策 / 版权 / 商标 / GDPR".
 ---
 
 # 合规与文案
@@ -26,7 +26,7 @@ description: SaaS 上线前的合规与文案规范：5 个法律页面写什么
 - 评价、案例、用户数要真实；没有就先不放。
 - 用到别人的产品名时写非官方声明：例 "An independent tool, not affiliated with OpenAI. ChatGPT is a trademark of OpenAI."
 - 域名和站名别放别人的商标（ChatGPT、TikTok、Notion…）：上面这句声明挡不住商标投诉和域名争议（UDRP）。商标词只在正文里描述性地用。
-- 价格处处一致：页面、FAQ、结构化数据、llms.txt。
+- 价格处处一致：页面、FAQ、结构化数据、llms.txt 都从产品事实文件取（→ `launch-checklist`）。
 
 ## 禁用词（支付审核、广告、各语言翻译都适用）
 - 先查支付商和广告平台的禁售、限制清单，再定文案。
@@ -46,4 +46,13 @@ description: SaaS 上线前的合规与文案规范：5 个法律页面写什么
 - 存储和发给第三方之前去掉 EXIF：手机照片里常带 GPS 位置。
 - 建议加内容审核：未成年人、裸露、名人、违法内容。
 - 用户内容会公开展示时：要有举报入口和侵权投诉（DMCA）联系方式。
-- 接口限流：先按 IP，登录后再按用户。
+- 接口限流：先按 IP，登录后再按用户（→ `abuse-and-cost-control`）。
+
+## 上线前自查
+```bash
+node scripts/site-audit.mjs https://<域名> --webhook=<支付回调路径>
+```
+- 必须过：首页页脚链到 5 个法律页面且都能打开；有联系邮箱；首页和定价页没有禁用词；支付回调地址不跳转，没签名的请求返回 4xx。
+- 逐条列出、由人确认：英文页面上的 "free""unlimited""instant""guaranteed""100%" 这类说法是不是真的。
+- 自己产品的禁用词用 `--banned=词,词` 加上；别的营销页用 `--page=/路径` 加上。
+- 脚本在本 skill 的 `scripts/` 目录（Node 18+，零依赖），可以直接用 skill 目录里的路径运行。
