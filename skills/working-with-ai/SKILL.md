@@ -10,18 +10,19 @@ description: 怎么提问 GPT、怎么给 AI 编程助手下指令：用 ChatGPT
 
 **开搜索模式，同一个意思换 5–8 种问法，中英文都问：**
 ```text
-What's the best tool to make the <梗名> video?
-Is there a <梗名> meme template?
-How do I make the <梗名> meme with my dog?
-Free <梗名> meme generator?
-<梗名> CapCut template
-How do people make the <梗名> trend video on TikTok?
-怎么做 <梗名> 视频？有没有现成的模板？
+What's the best tool to <任务>?
+Is there a free <类别> tool?
+Best <类别> for <人群或场景>
+<竞品> alternatives
+<竞品> vs <竞品>
+How do I <任务> without <现在的麻烦做法>?
+怎么 <任务>？有没有好用的工具？
 ```
+例（热点视频站）：`What's the best tool to make the <梗名> video?`、`<梗名> CapCut template`、`How do I make the <梗名> meme with my dog?`
 
 **每次记下：**
 - 它推荐了哪些网站、哪类工具（例：假聊天截图视频工具、CapCut 模板、通用 AI 视频应用）。
-- 它引用的事实：价格、免费吗、有没有水印、要不要 App、多久出片。
+- 它引用的事实：价格、免费吗、要不要注册、支持哪些平台、有什么限制（例：有没有水印、多久出结果）。
 - 它用的词：用户和 ChatGPT 怎么称呼这个东西（例 "template" 还是 "generator"）。
 
 **变成页面内容：**
@@ -35,8 +36,8 @@ How do people make the <梗名> trend video on TikTok?
 **上线后**：每周问一次同样的问题，看自己有没有被推荐。没有的话，先查 Bing 有没有收录（→ `seo-launch`）。
 
 ## B. 其他适合交给 GPT 的事
-- 逐帧拆原片：要求"量出来"，给秒数和依据（帧差、音频波形），不要凭印象（→ `ai-video-prompt`）。
-- 批量翻译：给翻译说明和检查脚本，一种语言一个助手同时跑（→ `multilingual-homepage`）。
+- 拆参考样本：要求"量出来"，给数字和依据（视频的帧差、音频波形；文案的字数、结构），不要凭印象（→ `ai-feature-prompts`）。
+- 批量翻译：给翻译说明和检查脚本，一种语言一个助手同时跑（→ `multilingual-site`）。
 - 文案初稿：先给产品事实和禁用词（→ `compliance-and-copy`），再让它写。
 - 竞品复盘：把别人的上站复盘贴给它，让它对照自己的站逐条检查。
 
@@ -44,6 +45,7 @@ How do people make the <梗名> trend video on TikTok?
 **布置任务：目标 + 已定的决定 + 为什么。**
 ```text
 补一下埋点；做 4 个答案页；做多语言首页。
+定价页加年付，打 8 折——年付先收到现金，也更少流失。
 提示词把动作和口型按秒定位，原声当参考音频传进去——原声是最大的卖点。
 ```
 

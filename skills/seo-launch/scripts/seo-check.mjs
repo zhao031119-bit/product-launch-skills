@@ -3,20 +3,37 @@
 // that redirects is reported as "Page with redirect" and left out.
 //
 // What it checks:
-// - robots.txt names <site>/sitemap.xml
-// - the sitemap answers 200 as XML
+// - robots.txt names <site>/sitemap.xml and does not shut out all crawlers,
+//   or the search and AI crawlers that seo-launch lets in
+// - the sitemap answers 200 as XML (a sitemap index is followed to its
+//   sitemaps)
 // - every sitemap URL and hreflang target answers 200 (no redirect), with
 //   itself as the only canonical and no noindex
-// - every other address of a page (http://, www., a trailing slash, the old
-//   /zh prefix) is a permanent 301 straight to the clean URL
+// - every other address of a page (http://, the www or bare host the site
+//   does not use, a trailing slash, each --legacy-prefix) is a permanent 301
+//   straight to the clean URL
 // - an unknown page answers 404, not a 200 "soft 404"
 //
 // Usage after a deploy:   node scripts/seo-check.mjs https://your-domain
 // Against the dev server: node scripts/seo-check.mjs http://localhost:3000
+// Add --legacy-prefix=/zh (once per prefix) when an old path prefix should
+// 301 to the clean URL.
 
-const site = (process.argv[2] || '').replace(/\/+$/, '');
-if (!/^https?:\/\/[^/]+$/.test(site)) {
-  console.error('usage: node scripts/seo-check.mjs https://your-domain');
+const args = process.argv.slice(2);
+const flags = args.filter((arg) => arg.startsWith('--'));
+const [siteArg = ''] = args.filter((arg) => !arg.startsWith('--'));
+const site = siteArg.replace(/\/+$/, '');
+const legacyPrefixes = flags
+  .filter((flag) => flag.startsWith('--legacy-prefix='))
+  .map((flag) => flag.slice('--legacy-prefix='.length).replace(/\/+$/, ''));
+if (
+  !/^https?:\/\/[^/]+$/.test(site) ||
+  legacyPrefixes.length !== flags.length ||
+  !legacyPrefixes.every((prefix) => /^\/[^/]/.test(prefix))
+) {
+  console.error(
+    'usage: node scripts/seo-check.mjs https://your-domain [--legacy-prefix=/old ...]'
+  );
   process.exit(1);
 }
 const origin = new URL(site);
@@ -60,6 +77,15 @@ const decode = (text) =>
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, '&');
 
+/** The URL in normal form (https://x.com is https://x.com/), or null. */
+function normalize(url) {
+  try {
+    return new URL(url).href;
+  } catch {
+    return null;
+  }
+}
+
 function canonicalsOf(html) {
   return [...html.matchAll(/<link\b[^>]*>/gi)]
     .map(([tag]) => tag)
@@ -84,41 +110,110 @@ async function check(label, run) {
   }
 }
 
+// "*" and the search and AI crawlers that seo-launch lets in.
+const CRAWLERS = [
+  '*',
+  'googlebot',
+  'bingbot',
+  'oai-searchbot',
+  'chatgpt-user',
+  'gptbot',
+  'perplexitybot',
+  'claudebot',
+];
+
+/** robots.txt as [field, value] pairs: field lowercased, comments dropped. */
+function robotsRules(text) {
+  return text
+    .split(/\r?\n/)
+    .map((line) =>
+      line.replace(/#.*/, '').match(/^\s*([a-z-]+)\s*:\s*(.*?)\s*$/i)
+    )
+    .filter(Boolean)
+    .map(([, field, value]) => [field.toLowerCase(), value]);
+}
+
+/** The user-agents whose group disallows the whole site. */
+function shutOut(rules) {
+  const agents = [];
+  let group = [];
+  let groupHasRules = false;
+  for (const [field, value] of rules) {
+    if (field === 'user-agent') {
+      // A user-agent line after rules starts the next group.
+      if (groupHasRules) {
+        group = [];
+        groupHasRules = false;
+      }
+      group.push(value.toLowerCase());
+    } else if (field === 'allow' || field === 'disallow') {
+      groupHasRules = true;
+      if (field === 'disallow' && (value === '/' || value === '/*'))
+        agents.push(...group);
+    }
+  }
+  return agents;
+}
+
 // 1. robots.txt
 await check('robots.txt', async () => {
   const res = await get(`${site}/robots.txt`);
-  const lines = (await res.text()).split(/\r?\n/).map((line) => line.trim());
-  if (res.status !== 200) bad(`robots.txt: HTTP ${res.status}`);
-  else if (!lines.includes(`Sitemap: ${site}/sitemap.xml`))
-    bad(`robots.txt: no "Sitemap: ${site}/sitemap.xml" line`);
-  else if (lines.some((line) => /^disallow:\s*\/$/i.test(line)))
-    bad('robots.txt: "Disallow: /" blocks the whole site');
-  else ok('robots.txt names the sitemap');
+  const rules = robotsRules(await res.text());
+  if (res.status !== 200) return bad(`robots.txt: HTTP ${res.status}`);
+  const namesSitemap = rules.some(
+    ([field, value]) => field === 'sitemap' && value === `${site}/sitemap.xml`
+  );
+  const blocked = [...new Set(shutOut(rules))].filter((agent) =>
+    CRAWLERS.includes(agent)
+  );
+  if (!namesSitemap) bad(`robots.txt: no "Sitemap: ${site}/sitemap.xml" line`);
+  if (blocked.length)
+    bad(`robots.txt: "Disallow: /" for ${blocked.join(', ')}`);
+  if (namesSitemap && !blocked.length)
+    ok('robots.txt names the sitemap and lets crawlers in');
 });
 
-// 2. the sitemap itself
+const LOC = /<loc>\s*([^<]+?)\s*<\/loc>/g;
+const HREFLANG = /<xhtml:link\b[^>]*\bhref="([^"]+)"/g;
+const matches = (xml, pattern) =>
+  [...xml.matchAll(pattern)].map((match) => decode(match[1]));
+
+/** A sitemap's XML; nothing (after reporting why) unless it is 200 XML. */
+async function readSitemap(url) {
+  const res = await get(url);
+  const type = res.headers.get('content-type') ?? '';
+  const xml = await res.text();
+  if (res.status !== 200) return bad(`${url}: HTTP ${res.status}`);
+  if (!/xml/i.test(type)) return bad(`${url}: served as "${type}", not XML`);
+  return xml;
+}
+
+// 2. the sitemap itself; a sitemap index is followed to its sitemaps
 let locs = [];
 let alternates = [];
 await check('sitemap.xml', async () => {
-  const res = await get(`${site}/sitemap.xml`);
-  const type = res.headers.get('content-type') ?? '';
-  const xml = await res.text();
-  if (res.status !== 200) return bad(`sitemap.xml: HTTP ${res.status}`);
-  if (!/xml/i.test(type))
-    return bad(`sitemap.xml: served as "${type}", not XML`);
-  const unique = (matches) => [
-    ...new Set([...matches].map((match) => decode(match[1]))),
-  ];
-  locs = unique(xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/g));
-  alternates = unique(xml.matchAll(/<xhtml:link\b[^>]*\bhref="([^"]+)"/g));
+  const xml = await readSitemap(`${site}/sitemap.xml`);
+  if (xml === undefined) return;
+  let files = [xml];
+  if (/<sitemapindex\b/i.test(xml)) {
+    const children = matches(xml, LOC);
+    ok(`sitemap.xml: index of ${children.length} sitemaps`);
+    files = [];
+    for (const child of children) {
+      const childXml = await readSitemap(child);
+      if (childXml !== undefined) files.push(childXml);
+    }
+  }
+  locs = [...new Set(files.flatMap((file) => matches(file, LOC)))];
+  alternates = [...new Set(files.flatMap((file) => matches(file, HREFLANG)))];
   if (locs.length === 0) return bad('sitemap.xml: no <loc> URLs');
-  ok(`sitemap.xml: 200 ${type}, ${locs.length} URLs`);
+  ok(`sitemap.xml: ${locs.length} URLs`);
 });
 
 // 3. every sitemap URL answers 200 itself and names itself as canonical
 for (const loc of locs) {
   await check(loc, async () => {
-    if (!loc.startsWith(`${site}/`))
+    if (new URL(loc).origin !== origin.origin)
       return bad(`${loc}: not on ${site} (http/www mismatch)`);
     const res = await get(loc);
     if (res.status !== 200) {
@@ -130,7 +225,7 @@ for (const loc of locs) {
     const canonicals = canonicalsOf(html);
     if (canonicals.length !== 1)
       bad(`${loc}: ${canonicals.length} canonical tags`);
-    else if (canonicals[0] !== loc)
+    else if (normalize(canonicals[0]) !== normalize(loc))
       bad(`${loc}: canonical is ${canonicals[0]}`);
     else if (isNoindex(html, res)) bad(`${loc}: noindex`);
     else ok(`200, self-canonical  ${loc}`);
@@ -138,7 +233,8 @@ for (const loc of locs) {
 }
 
 // 4. hreflang targets that are not sitemap URLs themselves
-for (const href of alternates.filter((url) => !locs.includes(url))) {
+const listed = new Set(locs.map(normalize));
+for (const href of alternates.filter((url) => !listed.has(normalize(url)))) {
   await check(href, async () => {
     const res = await get(href);
     await res.body?.cancel();
@@ -149,20 +245,29 @@ for (const href of alternates.filter((url) => !locs.includes(url))) {
 
 // 5. other addresses of the same page: one permanent hop to the clean URL
 const page =
-  locs.map((url) => new URL(url).pathname).find((path) => path !== '/') ??
-  '/pricing';
+  locs
+    .map(normalize)
+    .filter(Boolean)
+    .map((url) => new URL(url).pathname)
+    .find((path) => path !== '/') ?? '/pricing';
 const variants = [
   [`${site}${page}/`, `${site}${page}`],
-  [`${site}/zh${page}`, `${site}${page}`],
+  ...legacyPrefixes.map((prefix) => [
+    `${site}${prefix}${page}`,
+    `${site}${page}`,
+  ]),
 ];
 if (origin.protocol === 'https:') {
   const host = origin.host;
+  // The same site under its other name: www.<domain> for a bare-domain site,
+  // the bare domain for a www site.
+  const twin = host.startsWith('www.') ? host.slice(4) : `www.${host}`;
   variants.push(
     [`http://${host}/`, `${site}/`],
     [`http://${host}${page}`, `${site}${page}`],
-    [`https://www.${host}/`, `${site}/`],
-    [`https://www.${host}/sitemap.xml`, `${site}/sitemap.xml`],
-    [`http://www.${host}${page}/?ref=x`, `${site}${page}?ref=x`]
+    [`https://${twin}/`, `${site}/`],
+    [`https://${twin}/sitemap.xml`, `${site}/sitemap.xml`],
+    [`http://${twin}${page}/?ref=x`, `${site}${page}?ref=x`]
   );
 }
 for (const [from, to] of variants) {

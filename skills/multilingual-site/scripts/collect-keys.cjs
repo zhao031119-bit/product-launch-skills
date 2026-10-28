@@ -4,7 +4,12 @@
 // Usage: node collect-keys.cjs <projectRoot> <messages/en.json> <out.json> <entry file>...
 // Example: node collect-keys.cjs . messages/en.json en-home.json src/routes/index.tsx src/routes/__root.tsx
 //
-// Assumes the "@/..." import alias points at <projectRoot>/src (edit ALIAS_DIR otherwise).
+// Written for a ShipAny-style project. Before using it elsewhere, check that:
+// - messages/en.json is flat and the code names keys as dotted strings, e.g.
+//   t('landing.hero.title') or `landing.steps.${n}.title`. Paraglide's own
+//   m.hero_title() calls are not picked up.
+// - the "@/..." import alias points at <projectRoot>/src (edit ALIAS_DIR otherwise).
+// - SKIP lists your folders that never render page text.
 const fs = require('fs');
 const path = require('path');
 

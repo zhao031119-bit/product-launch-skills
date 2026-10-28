@@ -2,13 +2,19 @@
  * The one public URL a request belongs on, or null when it already is there.
  *
  * Search engines index a sitemap URL only when it answers 200 itself, and
- * treat every other address of the same page (http://, www., a trailing
- * slash, the old /zh prefix) as a duplicate. Each of those gets ONE permanent
- * redirect straight to the clean URL, never a chain of hops.
+ * treat every other address of the same page (http://, the www or bare host
+ * the site does not use, a trailing slash, a retired path prefix) as a
+ * duplicate. Each of those gets ONE permanent redirect straight to the clean
+ * URL, never a chain of hops.
  */
 export function canonicalRedirectTarget(
   requestUrl: string,
-  options: { appUrl: string; forwardedProto?: string | null }
+  options: {
+    appUrl: string;
+    forwardedProto?: string | null;
+    /** Retired path prefixes to drop, e.g. ['/zh'] for an old locale. */
+    legacyPrefixes?: string[];
+  }
 ): string | null {
   const current = new URL(requestUrl);
   // Behind a TLS-terminating proxy the request URL can read http:// while the
@@ -18,8 +24,14 @@ export function canonicalRedirectTarget(
 
   const app = parseUrl(options.appUrl);
   const target = new URL(current.href);
-  if (target.hostname.startsWith('www.') && target.hostname !== app?.hostname) {
-    target.hostname = target.hostname.slice(4);
+  // www.<domain> and <domain> are one site: whichever of the two the app URL
+  // does not use goes to the one it does. Other hosts are left alone.
+  if (
+    app &&
+    target.hostname !== app.hostname &&
+    bareHost(target.hostname) === bareHost(app.hostname)
+  ) {
+    target.hostname = app.hostname;
   }
   if (app?.protocol === 'https:') {
     // wrangler also serves the Worker on <name>.<account>.workers.dev.
@@ -32,8 +44,15 @@ export function canonicalRedirectTarget(
     if (target.hostname === app.hostname) target.protocol = 'https:';
   }
 
-  const legacyLocale = target.pathname.match(/^\/zh(\/.*)?$/);
-  if (legacyLocale) target.pathname = legacyLocale[1] || '/';
+  for (const prefix of options.legacyPrefixes ?? []) {
+    if (
+      target.pathname === prefix ||
+      target.pathname.startsWith(`${prefix}/`)
+    ) {
+      target.pathname = target.pathname.slice(prefix.length) || '/';
+      break;
+    }
+  }
   // The router answers a trailing slash with a temporary 307; make it a 301.
   // API paths are left alone: a client posting there expects no redirect.
   if (
@@ -45,6 +64,10 @@ export function canonicalRedirectTarget(
   }
 
   return target.href === current.href ? null : target.href;
+}
+
+function bareHost(hostname: string): string {
+  return hostname.replace(/^www\./, '');
 }
 
 function parseUrl(value: string): URL | null {

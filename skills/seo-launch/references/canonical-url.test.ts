@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { canonicalRedirectTarget } from './canonical-url';
 
 const SITE = 'https://example.org';
-const live = { appUrl: SITE };
+const live = { appUrl: SITE, legacyPrefixes: ['/zh'] };
 const go = (url: string, forwardedProto?: string) =>
   canonicalRedirectTarget(url, { ...live, forwardedProto });
 
@@ -45,6 +45,11 @@ describe('canonicalRedirectTarget', () => {
     expect(go(`${SITE}/zhuanlan`)).toBeNull();
   });
 
+  test('without legacyPrefixes, /zh is an ordinary path', () => {
+    const site = { appUrl: SITE };
+    expect(canonicalRedirectTarget(`${SITE}/zh/pricing`, site)).toBeNull();
+  });
+
   test('API calls are never redirected for a trailing slash', () => {
     expect(go(`${SITE}/api/payment/notify/waffo/`)).toBeNull();
   });
@@ -68,11 +73,21 @@ describe('canonicalRedirectTarget', () => {
     expect(canonicalRedirectTarget('http://127.0.0.1:8787/es', live)).toBeNull();
   });
 
-  test('a www app URL keeps its www host', () => {
+  test('a www app URL keeps its www host and pulls the apex over', () => {
     const www = { appUrl: 'https://www.example.com' };
     expect(canonicalRedirectTarget('https://www.example.com/es', www)).toBeNull();
     expect(canonicalRedirectTarget('http://www.example.com/es', www)).toBe(
       'https://www.example.com/es'
     );
+    expect(canonicalRedirectTarget('https://example.com/es', www)).toBe(
+      'https://www.example.com/es'
+    );
+    expect(canonicalRedirectTarget('http://example.com/es/', www)).toBe(
+      'https://www.example.com/es'
+    );
+  });
+
+  test('hosts of other domains are never redirected', () => {
+    expect(go('https://www.other.example/es')).toBeNull();
   });
 });
